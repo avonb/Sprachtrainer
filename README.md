@@ -7,9 +7,10 @@ Die Einrichtungsplanung steht in [docs/setup.md](docs/setup.md).
 
 - Python-Worker `sprachtrainer` mit D1-Binding `DB`.
 - Entwicklungsdatenbank `persisch-trainer-dev`; ihre echte ID steht in `wrangler.jsonc`.
-- Schema in `migrations/0001_vocabulary.sql`.
+- Schema und Lernstand in `migrations/`; Details in [docs/learning.md](docs/learning.md).
 - Cloudflare Workers Builds ist mit `avonb/Sprachtrainer`, Branch `work`, verbunden.
 - Anmeldung, Lernoberfläche und MCP sind noch nicht implementiert.
+- Interne Vokabelverwaltung mit Umschrift, Beispielsätzen, Bewertungsverlauf und Wiederholungsterminen ist vorbereitet.
 
 ## Lokale Entwicklung
 

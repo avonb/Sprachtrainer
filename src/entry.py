@@ -1,9 +1,14 @@
 from urllib.parse import urlparse
 
 from workers import Response, WorkerEntrypoint
+from learning import VocabularyStore
 
 
 class Default(WorkerEntrypoint):
+    @property
+    def vocabulary(self):
+        return VocabularyStore(self.env.DB)
+
     async def fetch(self, request):
         path = urlparse(request.url).path
         if request.method != "GET":
