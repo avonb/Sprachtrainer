@@ -69,7 +69,7 @@ Vorgesehene Berechtigungen:
 | Account → Workers Scripts → Edit | Worker anlegen/ändern und deployen |
 | Account → D1 → Edit | Datenbanken, Schema und Testdaten verwalten |
 | Account → Account Settings → Read | Bei Bedarf Account-Informationen auflösen |
-| Account → Workers Builds Configuration → Edit | Nur falls Codex auch die Git-Build-Konfiguration per API verwalten soll |
+| Account → Workers CI → Edit | Nur falls Codex auch die Git-Build-Konfiguration per API verwalten soll |
 
 D1-Schreibrechte sind ausdrücklich erforderlich, wenn Codex Datenbanken über die API verändern soll. [6] Die letzte Berechtigung ist für die manuelle Git-Verknüpfung im Dashboard nicht erforderlich. Die Builds-API verlangt aktuell einen User-Token; deshalb wird hier dieser Typ verwendet. [7]
 

@@ -4,6 +4,8 @@
   "scripts": {
     "dev": "uv run --frozen pywrangler dev --ip 127.0.0.1",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "uv run --frozen pywrangler deploy",
     "build": "uv run --frozen pywrangler deploy --dry-run --outdir dist"
   },
   "devDependencies": {"wrangler": "4.151.1"}

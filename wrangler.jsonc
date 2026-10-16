@@ -1,14 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "persisch-trainer-dev",
+  "name": "sprachtrainer",
   "main": "src/entry.py",
   "compatibility_date": "2026-10-16",
   "compatibility_flags": ["python_workers"],
+  "workers_dev": true,
   "d1_databases": [{
     "binding": "DB",
     "database_name": "persisch-trainer-dev",
-    // Local development only. Replace with the actual development D1 ID before deployment.
-    "database_id": "00000000-0000-0000-0000-000000000000",
+    "database_id": "bcf3dad0-a442-4144-b295-03c90801348c",
     "migrations_dir": "migrations"
   }]
 }

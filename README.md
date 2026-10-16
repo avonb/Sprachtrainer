@@ -5,13 +5,11 @@ Die Einrichtungsplanung steht in [docs/setup.md](docs/setup.md).
 
 ## Status
 
-- Wrangler 4.151.1 und Python-Abhängigkeiten sind über Lockdateien festgelegt.
-- Die lokale D1-Migration und das persistente Schreiben/Lesen einer Testvokabel wurden geprüft.
-- Worker-Build und HTTP-Endpunkte sind noch nicht verifiziert: Der Zugriff auf
-  `https://index.pyodide.org` ist in der aktuellen Codex-Umgebung gesperrt.
-- Es wurden noch keine Cloudflare-Ressourcen, Builds oder GitHub-Verknüpfungen angelegt.
-- Die Datenbank-ID in `wrangler.jsonc` ist ein Platzhalter für lokale Entwicklung.
-  Vor einem Deployment muss sie durch die echte ID einer Entwicklungsdatenbank ersetzt werden.
+- Python-Worker `sprachtrainer` mit D1-Binding `DB`.
+- Entwicklungsdatenbank `persisch-trainer-dev`; ihre echte ID steht in `wrangler.jsonc`.
+- Schema in `migrations/0001_vocabulary.sql`.
+- Cloudflare Workers Builds ist mit `avonb/Sprachtrainer`, Branch `work`, verbunden.
+- Anmeldung, Lernoberfläche und MCP sind noch nicht implementiert.
 
 ## Lokale Entwicklung
 
@@ -46,17 +44,31 @@ Erwartet: `status: ok`; der Datenbank-Endpunkt meldet zusätzlich die Anzahl
 vorhandener Vokabeln. Die Endpunkte liefern keine Vokabelinhalte und erlauben
 keine Schreibzugriffe. Anmeldung, Lernoberfläche und MCP sind noch nicht implementiert.
 
-## Cloudflare und automatisches Hosting: noch offen
+## Deployment der Entwicklungsumgebung
 
-1. Cloudflare-Zugang in diesem Chat verfügbar machen und Account bestimmen.
-2. Entwicklungsdatenbank `persisch-trainer-dev` anlegen und ihre echte ID eintragen.
-3. Build und HTTP-/D1-Funktionstests erfolgreich abschließen.
-4. Migration explizit auf die Entwicklungsdatenbank anwenden und Entwicklungs-Worker deployen.
-5. Code zu GitHub übertragen; derzeit existiert nur ein lokaler Branch `work`.
-6. Cloudflare Workers Builds mit `avonb/Sprachtrainer` und dem vorgesehenen Branch
-   verbinden. Die GitHub-App-Autorisierung kann eine Anmeldung im Browser erfordern.
-7. Build-/Deploy-Befehle in der echten Builds-Umgebung testen, bevor automatische
-   Deployments aktiviert werden. Dort müssen Node.js und uv verfügbar sein.
+Cloudflare Workers Builds verwendet Branch `work` mit:
 
+- Build-Befehl: `npm run build`
+- Deploy-Befehl: `npm run deploy`
+
+Für ein manuelles Deployment müssen `CLOUDFLARE_API_TOKEN` und
+`CLOUDFLARE_ACCOUNT_ID` gesetzt sein. Schemaänderungen vor dem Deployment
+explizit auf die Entwicklungsdatenbank anwenden:
+
+```sh
+npm run db:migrate:remote
+npm run build
+npm run deploy
+```
+
+`db:migrate:remote` ändert die echte Entwicklungsdatenbank und benötigt D1-Schreibrechte.
+Migrationen sind bewusst kein automatischer Teil des Build-Befehls.
+
+Die Endpunkte der Entwicklungsumgebung sind:
+
+- https://sprachtrainer.j-a-von-berg.workers.dev/health
+- https://sprachtrainer.j-a-von-berg.workers.dev/health/db
+
+Unter `/` gibt es noch keine Oberfläche; dort liefert der Worker HTTP 404.
 Produktionsdatenbank und Produktionsdeployment werden getrennt eingerichtet.
 Secrets gehören in die Plattformverwaltung, niemals in dieses Repository.
