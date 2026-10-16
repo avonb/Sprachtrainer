@@ -8,7 +8,7 @@ Die Einrichtungsplanung steht in [docs/setup.md](docs/setup.md).
 - Python-Worker `sprachtrainer` mit D1-Binding `DB`.
 - Entwicklungsdatenbank `persisch-trainer-dev`; ihre echte ID steht in `wrangler.jsonc`.
 - Schema und Lernstand in `migrations/`; Details in [docs/learning.md](docs/learning.md).
-- Cloudflare Workers Builds ist mit `avonb/Sprachtrainer`, Branch `work`, verbunden.
+- Cloudflare Workers Builds ist mit `avonb/Sprachtrainer`, Branch `main`, verbunden.
 - Anmeldung, Lernoberfläche und MCP sind noch nicht implementiert.
 - Interne Vokabelverwaltung mit Umschrift, Beispielsätzen, Bewertungsverlauf und Wiederholungsterminen ist vorbereitet.
 
@@ -47,7 +47,7 @@ keine Schreibzugriffe. Anmeldung, Lernoberfläche und MCP sind noch nicht implem
 
 ## Deployment der Entwicklungsumgebung
 
-Cloudflare Workers Builds verwendet Branch `work` mit:
+Cloudflare Workers Builds verwendet Branch `main` mit:
 
 - Build-Befehl: `npm run build`
 - Deploy-Befehl: `npm run deploy`
