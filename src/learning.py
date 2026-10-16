@@ -1,5 +1,6 @@
 """Internal D1 data access for one personal collection; no HTTP access yet."""
 
+import json
 import math
 import time
 import unicodedata
@@ -15,6 +16,27 @@ STATE_COLUMNS = ('vocabulary_id', 'due_at', 'interval_days', 'repetitions',
 REVIEW_COLUMNS = ('id', 'vocabulary_id', 'rating', 'reviewed_at',
                   'previous_revision', 'due_at', 'interval_days',
                   'repetitions', 'lapses')
+TAG_SELECTION = (
+    '(SELECT json_group_array(name) FROM ('
+    'SELECT t.name FROM tags t JOIN vocabulary_tags vt ON vt.tag_id=t.id '
+    'WHERE vt.vocabulary_id=v.id ORDER BY t.name)) AS tags_json'
+)
+
+
+def normalize_tag(name):
+    if not isinstance(name, str):
+        raise ValueError('tag must be a string')
+    name = unicodedata.normalize('NFC', ' '.join(name.split()).casefold())
+    if not 1 <= len(name) <= 80:
+        raise ValueError('tag must contain between 1 and 80 characters')
+    return name
+
+
+def word_dict(row, *, due=False):
+    word = row_dict(row, (*WORD_COLUMNS, 'due_at') if due else WORD_COLUMNS)
+    if word is not None:
+        word['tags'] = json.loads(row.tags_json)
+    return word
 
 
 def row_dict(row, columns):
@@ -54,8 +76,10 @@ class VocabularyStore:
         return self.db.prepare(sql).bind(*args)
 
     async def get(self, vocabulary_id):
-        row = await self.statement('SELECT * FROM vocabulary WHERE id = ?', vocabulary_id).first()
-        return row_dict(row, WORD_COLUMNS)
+        row = await self.statement(
+            'SELECT v.*,' + TAG_SELECTION + ' FROM vocabulary v WHERE v.id=?',
+            vocabulary_id).first()
+        return word_dict(row)
 
     async def save(self, *, persian, german, transliteration='', example_persian='',
                    example_german='', notes='', vocabulary_id=None, now=None):
@@ -78,7 +102,7 @@ class VocabularyStore:
                 + ',updated_at=? WHERE id=? RETURNING *', *values, now, vocabulary_id).first()
             if row is None:
                 raise ValueError('vocabulary not found')
-        return row_dict(row, WORD_COLUMNS)
+        return await self.get(row.id)
 
     async def archive(self, vocabulary_id, *, archived=True, now=None):
         now = int(time.time()) if now is None else now
@@ -87,23 +111,64 @@ class VocabularyStore:
             now if archived else None, now, vocabulary_id).first()
         if row is None:
             raise ValueError('vocabulary not found')
-        return row_dict(row, WORD_COLUMNS)
+        return await self.get(row.id)
+
+    async def tags(self, vocabulary_id):
+        word = await self.get(vocabulary_id)
+        if word is None:
+            raise ValueError('vocabulary not found')
+        return word['tags']
+
+    async def add_tag(self, vocabulary_id, name):
+        name = normalize_tag(name)
+        # Verify the word before creating a catalog entry.
+        await self.tags(vocabulary_id)
+        await self.statement('INSERT INTO tags(name) VALUES (?) '
+                             'ON CONFLICT(name) DO NOTHING', name).run()
+        await self.statement(
+            'INSERT INTO vocabulary_tags(vocabulary_id,tag_id) '
+            'SELECT ?,id FROM tags WHERE name=? '
+            'ON CONFLICT(vocabulary_id,tag_id) DO NOTHING', vocabulary_id, name).run()
+        return await self.tags(vocabulary_id)
+
+    async def remove_tag(self, vocabulary_id, name):
+        name = normalize_tag(name)
+        await self.tags(vocabulary_id)
+        await self.statement(
+            'DELETE FROM vocabulary_tags WHERE vocabulary_id=? '
+            'AND tag_id IN (SELECT id FROM tags WHERE name=?)', vocabulary_id, name).run()
+        return await self.tags(vocabulary_id)
+
+    async def list_tags(self):
+        result = await self.statement(
+            'SELECT t.name,COUNT(v.id) AS vocabulary_count FROM tags t '
+            'LEFT JOIN vocabulary_tags vt ON vt.tag_id=t.id '
+            'LEFT JOIN vocabulary v ON v.id=vt.vocabulary_id AND v.archived_at IS NULL '
+            'GROUP BY t.id,t.name ORDER BY t.name').all()
+        return [row_dict(row, ('name', 'vocabulary_count')) for row in result.results]
 
     async def state(self, vocabulary_id):
         row = await self.statement(
             'SELECT * FROM learning_state WHERE vocabulary_id=?', vocabulary_id).first()
         return row_dict(row, STATE_COLUMNS)
 
-    async def due(self, *, now=None, limit=20):
+    async def due(self, *, now=None, limit=20, tag=None):
         now = int(time.time()) if now is None else now
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError('limit must be between 1 and 100')
+        tag_filter = ''
+        args = [now]
+        if tag is not None:
+            tag_filter = (' AND EXISTS (SELECT 1 FROM vocabulary_tags vt '
+                          'JOIN tags t ON t.id=vt.tag_id '
+                          'WHERE vt.vocabulary_id=v.id AND t.name=?)')
+            args.append(normalize_tag(tag))
         result = await self.statement(
-            'SELECT v.*,COALESCE(s.due_at,v.created_at) AS due_at '
+            'SELECT v.*,COALESCE(s.due_at,v.created_at) AS due_at,' + TAG_SELECTION + ' '
             'FROM vocabulary v LEFT JOIN learning_state s ON s.vocabulary_id=v.id '
             'WHERE v.archived_at IS NULL AND COALESCE(s.due_at,v.created_at)<=? '
-            'ORDER BY due_at,v.id LIMIT ?', now, limit).all()
-        return [row_dict(row, (*WORD_COLUMNS, 'due_at')) for row in result.results]
+            + tag_filter + ' ORDER BY due_at,v.id LIMIT ?', *args, limit).all()
+        return [word_dict(row, due=True) for row in result.results]
 
     async def review(self, vocabulary_id, rating, *, review_id=None, now=None):
         """Retry with the same review_id to avoid counting a result twice.

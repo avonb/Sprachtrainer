@@ -23,6 +23,9 @@ class Statement:
         rows = self.connection.execute(self.sql, self.args).fetchall()
         return SimpleNamespace(results=[SimpleNamespace(**dict(row)) for row in rows])
 
+    async def run(self):
+        self.connection.execute(self.sql, self.args)
+
 
 class Database:
     def __init__(self, connection):
@@ -41,6 +44,7 @@ class LearningTests(unittest.IsolatedAsyncioTestCase):
         self.db.executescript((migrations / '0001_vocabulary.sql').read_text())
         self.db.execute("INSERT INTO vocabulary VALUES (1,'سلام','Hallo')")
         self.db.executescript((migrations / '0002_learning.sql').read_text())
+        self.db.executescript((migrations / '0003_tags.sql').read_text())
         self.store = VocabularyStore(Database(self.db))
 
     def tearDown(self):
@@ -116,6 +120,53 @@ class LearningTests(unittest.IsolatedAsyncioTestCase):
         text = "Buch'); DROP TABLE vocabulary; --"
         word = await self.store.save(persian='کتاب', german=text)
         self.assertEqual((await self.store.get(word['id']))['german'], text)
+
+    async def test_tags_are_shared_normalized_and_idempotent(self):
+        word = await self.word()
+        self.assertEqual(await self.store.add_tag(word['id'], '  Alltag  '), ['alltag'])
+        self.assertEqual(await self.store.add_tag(word['id'], 'ALLTAG'), ['alltag'])
+        await self.store.add_tag(1, 'alltag')
+        await self.store.add_tag(word['id'], 'Lektion   1')
+        self.assertEqual((await self.store.get(word['id']))['tags'], ['alltag', 'lektion 1'])
+        self.assertEqual(await self.store.list_tags(), [
+            {'name': 'alltag', 'vocabulary_count': 2},
+            {'name': 'lektion 1', 'vocabulary_count': 1}])
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM tags').fetchone()[0], 2)
+
+    async def test_remove_tag_does_not_change_other_words_or_learning(self):
+        word = await self.word()
+        await self.store.add_tag(1, 'Alltag')
+        await self.store.add_tag(word['id'], 'Alltag')
+        await self.store.review(word['id'], 'good', now=1000)
+        state = await self.store.state(word['id'])
+        self.assertEqual(await self.store.remove_tag(word['id'], 'ALLTAG'), [])
+        self.assertEqual(await self.store.remove_tag(word['id'], 'alltag'), [])
+        self.assertEqual(await self.store.tags(1), ['alltag'])
+        self.assertEqual(await self.store.state(word['id']), state)
+        self.assertEqual(len(await self.store.history(word['id'])), 1)
+
+    async def test_due_tag_filter_respects_schedule_and_archive(self):
+        word = await self.word()
+        await self.store.add_tag(word['id'], 'Lesen')
+        self.assertEqual([w['id'] for w in await self.store.due(now=1000, tag='LESEN')], [word['id']])
+        self.assertEqual(await self.store.due(now=1000, tag='unbekannt'), [])
+        await self.store.review(word['id'], 'good', now=1000)
+        self.assertEqual(await self.store.due(now=1001, tag='lesen'), [])
+        await self.store.archive(word['id'], now=1002)
+        self.assertEqual(await self.store.due(now=100000, tag='lesen'), [])
+        self.assertEqual(await self.store.tags(word['id']), ['lesen'])
+        self.assertEqual(await self.store.list_tags(), [{'name': 'lesen', 'vocabulary_count': 0}])
+
+    async def test_tag_validation_and_parameterized_names(self):
+        word = await self.word()
+        for invalid in ('  ', 'x' * 81, 42):
+            with self.assertRaises(ValueError):
+                await self.store.add_tag(word['id'], invalid)
+        with self.assertRaises(ValueError):
+            await self.store.add_tag(9999, 'missing word')
+        self.assertEqual(await self.store.list_tags(), [])
+        tag = "x'); drop table tags; --"
+        self.assertEqual(await self.store.add_tag(word['id'], tag), [tag])
 
     def test_intervals_and_lapses(self):
         state = None

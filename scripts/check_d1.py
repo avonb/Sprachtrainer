@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.learning import VocabularyStore  # noqa: E402
@@ -40,6 +41,9 @@ class Statement:
         result = await self.all()
         return result.results[0] if result.results else None
 
+    async def run(self):
+        return await self.all()
+
 
 class Database:
     def __init__(self):
@@ -58,20 +62,25 @@ async def main():
     store = VocabularyStore(db)
     word = await store.save(persian='کتاب', german='Buch', transliteration='ketāb',
                             notes='Temporary integration check; deleted afterwards')
+    tag = 'integration-' + str(uuid4())
     try:
+        assert await store.add_tag(word['id'], tag.upper()) == [tag]
+        assert (await store.get(word['id']))['tags'] == [tag]
         assert (await store.get(word['id']))['persian'] == 'کتاب'
         review = await store.review(word['id'], 'good')
         assert await store.review(word['id'], 'good', review_id=review['id']) == review
         assert (await VocabularyStore(db).state(word['id']))['revision'] == 1
-        assert any(row['id'] == word['id'] for row in await store.due(now=review['due_at']))
+        assert any(row['id'] == word['id'] for row in await store.due(now=review['due_at'], tag=tag))
         assert len(await store.history(word['id'])) == 1
         await store.archive(word['id'])
         assert not any(row['id'] == word['id'] for row in await store.due(now=review['due_at']))
-        print('OK: remote D1 vocabulary, persistent review, retry, due list and archive')
+        assert await store.remove_tag(word['id'], tag) == []
+        print('OK: remote D1 vocabulary, tags, persistent review, retry, due list and archive')
     finally:
         for table in ('reviews', 'learning_state'):
             await db.prepare(f'DELETE FROM {table} WHERE vocabulary_id=?').bind(word['id']).all()
         await db.prepare('DELETE FROM vocabulary WHERE id=?').bind(word['id']).all()
+        await db.prepare('DELETE FROM tags WHERE name=?').bind(tag).all()
         print('Temporary check data removed')
 
 

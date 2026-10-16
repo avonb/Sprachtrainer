@@ -10,7 +10,7 @@ Die Einrichtungsplanung steht in [docs/setup.md](docs/setup.md).
 - Schema und Lernstand in `migrations/`; Details in [docs/learning.md](docs/learning.md).
 - Cloudflare Workers Builds ist mit `avonb/Sprachtrainer`, Branch `main`, verbunden.
 - Anmeldung, Lernoberfläche und MCP sind noch nicht implementiert.
-- Interne Vokabelverwaltung mit Umschrift, Beispielsätzen, Bewertungsverlauf und Wiederholungsterminen ist vorbereitet.
+- Interne Vokabelverwaltung mit Umschrift, Beispielsätzen, Tags, Bewertungsverlauf und Wiederholungsterminen ist vorbereitet.
 
 ## Lokale Entwicklung
 
